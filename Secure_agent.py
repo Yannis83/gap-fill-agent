@@ -1,4 +1,4 @@
-# secure_agent.py (public-ready with .env support)
+# secure_agent.py (public-ready with .env support and Telegram confirmation)
 
 import os
 import datetime
@@ -24,14 +24,22 @@ def send_telegram_alert(message):
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
-        requests.post(url, data=payload)
+        try:
+            response = requests.post(url, data=payload)
+            print(f"Telegram status: {response.status_code}")
+        except Exception as e:
+            print(f"Error sending Telegram message: {e}")
+    else:
+        print("Telegram credentials missing. Message not sent.")
 
 def wait_until_market_open():
     eastern = pytz.timezone('US/Eastern')
     now = datetime.datetime.now(tz=eastern)
     target = now.replace(hour=9, minute=30, second=0, microsecond=0)
     if now >= target:
+        send_telegram_alert("🚨 Market already open. Starting scans...")
         return
+    send_telegram_alert("⏳ Waiting for market open at 9:30 AM ET...")
     time.sleep((target - now).total_seconds())
 
 def run_gap_fill(symbol):
@@ -75,6 +83,8 @@ def run_gap_fill(symbol):
     df.to_csv(CSV_LOG_PATH, mode='a', header=not os.path.exists(CSV_LOG_PATH), index=False)
 
 if __name__ == "__main__":
+    print("Starting secure agent...")
+    print(f"Token loaded: {bool(TELEGRAM_TOKEN)} | Chat ID: {TELEGRAM_CHAT_ID}")
     wait_until_market_open()
     for ticker in watchlist:
         try:
